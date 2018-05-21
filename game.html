@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<title></title>
+		<script src="js/jquery-1.8.3.js" type="text/javascript" charset="utf-8"></script>
+		<style type="text/css">
+
+			/*电梯框效果*/
+			.frame{
+				border: 2px solid;				
+				width: 60px;
+				height: 60px;
+				margin-top: 0px;
+			}
+			.frame:hover{
+				background-color: darkgray;				
+			}
+			/*电梯箱效果*/
+			.realElevator{
+				position: relative;
+				height: 60px;
+				width: 60px;
+				background-color: #000000;
+				border-bottom: 1px solid;
+				border-top: 1px solid;				
+			}
+			/*门框效果*/
+			.leftDoorFrame{
+				height: 60px;
+				width: 46%;
+				display: inline-block;
+			}
+			.rightDoorFrame{
+				height: 60px;
+				width: 46%;
+				display: inline-block;
+			}
+			/*门效果*/
+			#leftDoor{
+				height: 100%;
+				width: 100%;
+				background-color: white;
+				position: relative;
+			}
+			#rightDoor{
+				height: 100%;
+				width: 100%;
+				background-color: white;
+				position: relative;
+			}
+			/*开门动画class*/
+			/*.rigthRunOpen{
+				-webkit-animation:rightDoorOpen 1s;
+			}
+			.leftRunOpen{
+				-webkit-animation:leftDoorOpen 1s;
+			}*/
+			/*开门动画效果*/
+			/*@keyframes rightDoorOpen{
+			    0% {position: relative;left:0px}
+			    100% {position: relative;left:30px}
+			}
+			@keyframes leftDoorOpen{
+			    0% {position: relative;left:0px}
+			    100% {position: relative;left:-30px}
+			}*/
+			/*关门动画class*/
+			/*.rigthRunClose{
+				-webkit-animation:leftDoorClose 1s;
+			}
+			.leftRunClose{
+				-webkit-animation:rightDoorClose 1s;
+			}*/
+			/*关门动画效果*/
+			/*@keyframes leftDoorClose{
+			    0% {position: relative;left:-30px}
+			    100% {position: relative;left:0px}
+			}
+			@keyframes rightDoorClose{
+			    0% {position: relative;left:30px}
+			    100% {position: relative;left:0px}
+			}*/
+			/*电梯骨架效果*/
+			ul{
+				list-style: none;
+				margin-bottom: 0px;
+				padding-left: 0px;
+				width: 100%;
+			}
+			li{
+				width: 60px;
+				margin-left: auto;
+				margin-right: auto;
+			}
+			/*地面效果*/
+			hr{
+				margin-top: 0px;
+				margin-bottom: 0px;
+				height: 1px;
+				background-color: #000000;
+			}
+			body{
+				height: 100%;
+			}
+			/*人样式*/
+			.human{
+				height: 40px;
+				width: 40px;
+				background-image: url("img/human.png");
+				position: relative;
+				margin-top: -40px;
+				margin-left: -40px;
+				z-index: 10px;
+			}
+		</style>
+		<script type="text/javascript">
+			$(function(){
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>通用数据>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>	
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>通用数据>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>	
+				let humanQueue = new Array();
+				let interval = 10;//人类距离电梯距离
+				let elevatorIsRun = false;//电梯是否正在运作
+				//监听小人开始等电梯
+				function pushHuman(human) {
+					//1.将小人装入电梯队列
+					humanQueue.push(human);
+					//2.如果电梯没有执行任务，则开启任务
+					if (!elevatorIsRun) {
+						elevatorIsRun = true;//电梯运作
+						//3.取出第一个，但是不可shift，因为还没有进入电梯
+						var runHuman = humanQueue[0];
+						//4.移动电梯
+						frameMove(runHuman.layerId);
+						console.log("电梯出发去"+runHuman.layerId+"层");
+						//5.等待电梯移动完毕,此方法回调下一步动作
+						waitRun();
+					}
+				}
+				
+				//等待电梯运行
+				function waitRun() {
+					//如果电梯在运行，等待 
+					if ($("#realElevator:animated").length < 1) {
+						console.log("电梯到达。。。");
+						goNext();//继续下一步
+					} else {
+						console.log("电梯正在运行。。。");
+						setTimeout(function() {
+							waitRun();
+						},200);
+					}
+				}
+				
+				let nowHr;
+				
+				//继续流程
+				function goNext() {
+					//7.开电梯门,判断门是否已经开启
+					if (!elevator.doorLeftIsOpen && !elevator.doorRightIsOpen) {
+						nowHr = humanQueue[0].hr;//记录当前层
+						doorOpen();
+						waitOpen();
+						return ;
+					} else {
+						//6.如果队列没有任务，停止执行
+							//防止电梯满员,或者当前层没有小人
+						if (elevator.elevatorArr.length < elevator.maxNum 
+								&& nowHr.children().length > 0) {
+							//应该取出当前行的下一个小人
+							var nextHuman = nowHr.children().eq(0);
+							//应该取出当前行的下一个小人的坐标
+							var indexHuman = getHumanById(nextHuman.attr("id"));
+							//从数组中拿出小人
+							var runHuman = humanQueue[indexHuman];
+							//从数组中删除
+							humanQueue.splice(indexHuman,1);
+							//9.移动小人走进电梯,并删除自己,将自己装入电梯数组，并且全体移动一步
+							runHuman.inElevatorAndRemove();//10,11
+							witeHuman();
+							console.log("当前层还有"+nowHr.children().length+"等待上电梯。。"+",电梯还有"+(elevator.maxNum - elevator.elevatorArr.length)+"个空位");
+							return;
+						} else {
+							//12.关电梯门
+							doorClose();
+						}
+					}
+				}
+				
+				//等待电梯开门
+				function waitOpen() {
+					if ($("#rightDoor:animated").length < 1 && $("#leftDoor:animated").length < 1) {
+						console.log("电梯门开了。。。");
+						goNext();//继续下一步
+					} else {
+						console.log("电梯正在开门。。。");
+						setTimeout(function() {
+							waitOpen();
+						},200);
+					}
+				}
+				
+				//等待排队者移动
+				function witeHuman() {
+					if (nowHr.children(":animated").length == 0) {
+						console.log("排队者走完。。。");
+						goNext();//继续下一步
+					} else {
+						console.log("排队者正在移动。。。");
+						setTimeout(function() {
+							witeHuman();
+						},200);
+					}
+				}
+				
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>人类>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>	
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>人类>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				//人类
+				function humanClass() {
+					this.id = humanClass.id++;
+				  	this.layerId = 2; //Math.floor(Math.random()*10);//当前所在楼层id
+				  	this.goLayerId = Math.floor(Math.random()*10);//人类想去的楼层
+				  	this.hr = $("#"+this.layerId).parent().find("+ hr");
+				  	this.newHuman = $("<div class='human' id='"+this.id+"'></div>");//人类真实对象
+				  	//创建一个人类对象
+				  	this.createHuman = function() {
+				  		//根据当前层电梯框,找到当前层电梯框的地面，在地面上放人
+				  		this.hr.append(this.newHuman);
+				  		return this;
+				  	}
+				  	//人类移动到电梯
+				  	this.enter = function(flag) {
+				  		var me = this;
+				  		//当前小人前方人数，不包括自己
+				  		var humanNum = this.hr.children("[id = '" + this.id + "']").prevAll().length;
+				  		console.log("前方"+humanNum+"人");
+				  		//获取当前位置
+				  		var nowXY = this.newHuman.offset().left;
+				  		console.log("当前在"+nowXY);
+						//计算出小人停止坐标  小人要移动 = 电梯坐标 - 当前位置坐标 -（人类数量 * 人类宽度）- 人类距离电梯间隔 -自身长度
+						var goToXY = elevator.getX() - nowXY - humanNum * humanClass.humanWidth - interval - humanClass.humanWidth;
+						console.log("要走"+goToXY+"目的地为"+elevator.getX());
+						//人类开始移动,所需时间为=将要移动的距离  / 人类每毫秒移动距离
+						console.log("左外边距"+ (goToXY + nowXY))
+						this.newHuman.animate({marginLeft: goToXY + nowXY },goToXY / humanClass.humanSpeed, function() {
+							if (flag) {
+								return;
+							}
+							//走完后放入
+							pushHuman(me);
+						});
+				  	}
+				  	//人类进入电梯,并删除自己
+				  	this.inElevatorAndRemove = function() {
+				  		var me = this;
+				  		//像右移动40px
+				  		this.newHuman.animate({marginLeft:this.newHuman.offset().left + 40}, 40 / humanClass.humanSpeed, function() {
+							//删除当前小人
+							me.newHuman.remove();
+							//10.装入小人
+							elevator.elevatorArr.push(me);
+							//11.全部小人跟进
+							nowlineRun(me.hr);
+						});
+				  	}
+//				  	//人类进入电梯
+//				  	this.inElevator = function() {
+//				  		var me = this;
+//				  		//像右移动40px
+//				  		this.newHuman.animate({marginLeft:this.nowStayX + 40}, 40 / humanClass.humanSpeed);
+//				  	}
+				}
+				//人类共通属性
+				humanClass.humanWidth = 40;//人类宽度
+				humanClass.humanSpeed = 0.1493;//人类移动速度（每毫秒）
+				humanClass.id = 1;//人类编号
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>电梯井>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>电梯井>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>	
+				//电梯井对象
+				function elevatorShaft() {
+					
+				};
+				elevatorShaft.layer = 10;// 电梯层数
+				elevatorShaft.layerHeight = 60;//层高像素
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>电梯>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>电梯>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>				
+				//电梯对象
+				function elevator() {
+					
+				};
+				elevator.width = 60;//电梯宽度
+				elevator.speed = 300;//移动一层需要的毫秒
+				elevator.maxNum = 5;//电梯承载最大人数
+				elevator.elevatorArr = new Array();//创建电梯容器
+				elevator.speedPX = elevator.speed / elevatorShaft.layerHeight; //电梯移动一像素需要的毫秒
+				elevator.doorLeftIsOpen = false;
+				elevator.doorRightIsOpen = false;
+				//电梯真实对象
+				elevator.realElevator = $("<div id='realElevator' class='realElevator'>"
+									+ "<div class='leftDoorFrame'>"
+										+ "<div id='leftDoor'></div>"
+									+" </div>" 
+									+" <div class='rightDoorFrame'>"
+										+ "<div id='rightDoor'></div>"
+									+" </div>"
+								+"</div>");
+				//电梯框
+				elevator.frame = $("<li><div class='frame'></div></li><hr></hr>");
+				//电梯框计算x坐标
+				elevator.getX = function() {
+					return $(".frame:first").position().left;
+				}
+				//电梯框x+宽坐标
+				elevator.getXAddWidth = function() {
+					return elevator.getX() + elevator.width;
+				}
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>初始化数据>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>初始化数据>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>				
+				//1.构建电梯
+				buildElevator(elevatorShaft.layer);
+				//2.人物构建
+//				setInterval(buildHuman,1500);
+				
+				//构建电梯
+				function buildElevator(layer) {
+					for (let i = 0; i < layer; i++){
+						elevator.frame.find("div").attr("id",i);//设置电梯框id，也代表楼层数
+						var nowFrame = elevator.frame.clone();
+						nowFrame.appendTo($("#elevator"));//将电梯框装入
+					}
+					$(".frame:last").append(elevator.realElevator.clone());//最后一个电梯框装入电梯
+				}
+				
+				//构建人
+				function buildHuman() {
+					//1.造人
+					var realHuman = new humanClass().createHuman();
+					//2.移动
+					realHuman.enter();
+				}
+				
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>逻辑代码>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>逻辑代码>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>				
+				//2.为电梯框绑定点击效果
+				let isRun = false;//电梯是否启动
+				$(".frame").live("click", function() {
+					buildHuman();
+//					if (!isRun) {
+//						isRun = true;
+//						//开始移动电梯箱
+//						frameMove($(this).attr("id"));
+//					}
+				});
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>封装代码>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>封装代码>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>				
+				//电梯箱移动
+				function frameMove(id) {
+					let now = $("#"+id);
+					let nowY = now.position().top;//当前点击电梯框Y坐标
+					let realY = $("#realElevator").parent().position().top;//当前电梯所在电梯框Y坐标
+					let distance = nowY - realY;//需要移动的Y值
+					let nowRunTime = elevator.speedPX * Math.abs(distance);//计算运行时间
+					//计算移动需要的毫秒，并且开始移动
+					$("#realElevator").animate({top: distance}, nowRunTime,function() {
+						var nowRealElevator = $("#realElevator");
+						//放入并从新定义相对定位值
+						nowRealElevator.appendTo(now).css("top","0px");
+					});
+				}
+				
+				//电梯开门效果
+				function doorOpen() {
+					$("#rightDoor").animate({left:"30px"},1000,function() {
+						elevator.doorRightIsOpen = true;
+					});
+					$("#leftDoor").animate({left:"-30px"},1000,function() {
+						elevator.doorLeftIsOpen = true;
+					});
+				}
+				//电梯关门效果
+				function doorClose() {
+					$("#rightDoor").animate({left:"0px"},1000);
+					$("#leftDoor").animate({left:"0px"},1000);
+				}
+				//当前行全部小人移动
+				function nowlineRun(nowHr) {
+					nowHr.children().each(function(){
+						var nowId = $(this).attr("id");
+						humanQueue[getHumanById(nowId)].enter(true);//移动但是不放入数组
+					});
+				}
+				//根据id从数组取出小人下标
+				function getHumanById(id) {
+					for (var i = 0; i < humanQueue.length; i++) {
+						if (humanQueue[i].id == id) {
+							return i;
+						}
+					}
+					return -1;
+				}
+			})
+		</script>
+	</head>
+	<body>
+		<ul id="elevator">
+		</ul>
+	</body>
+</html>
